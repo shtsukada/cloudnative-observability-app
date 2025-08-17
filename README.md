@@ -1,10 +1,11 @@
 # cloudnative-observability-app
 
-gRPC サーバ・クライアントを実装した負荷生成アプリケーションです。
+gRPC サーバ(:8080)とPrometheusメトリクス(/metrics, :9090)を提供する最小アプリ。
+負荷生成ロジックは(CPU/Memory/I/O)は`/pkg/load`に実装予定です。
 
 ## 成果物
 - gRPC サーバ & クライアント
-- 負荷モード: CPU / Memory / Latency / Errors / Streaming
+- Helm Chart: `charts/grpc-burner`
 - Prometheus メトリクス
 - zap JSON ログ（trace_id, request_id 含む）
 - OTLP トレース送信
