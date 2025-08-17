@@ -1,4 +1,5 @@
-name: lint (root)
+---
+name: lint (app)
 
 on:
   push:
@@ -9,70 +10,83 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Verify required files exist
-        run: |
-          set -euo pipefail
-          must=(
-            "README.md"
-            "LICENSE"
-            ".editorconfig"
-            ".gitattributes"
-            ".github/workflows/lint.yml"
-            ".github/workflows/release-please.yml"
-            ".github/renovate.json"
-          )
-          for f in "${must[@]}"; do
-            test -e "$f" || { echo "::error file=$f::missing required file"; exit 1; }
-          done
-          echo "All required files exist."
+      # ---- Go setup ----
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
 
-      - name: Markdown tab check
+      - name: Build server and client
         run: |
-          set -euo pipefail
-          if git ls-files '*.md' | xargs -r -n1 grep -n $'\t' --with-filename; then
-            echo "::error::Tab characters found in Markdown (use spaces)"; exit 1;
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/server ./cmd/server
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/client ./cmd/client
+
+      # （必要になったら有効化）
+      # - name: GolangCI-Lint
+      #   uses: golangci/golangci-lint-action@v6
+      #   with:
+      #     version: v1.64.2
+      #     args: --timeout 5m
+
+      # ---- 共通ツール ----
+      - name: Install yamllint & jq
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install yamllint
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      # ---- 共通チェック ----
+      - name: Run yamllint
+        run: yamllint .
+      - name: Run markdownlint
+        run: npx --yes markdownlint-cli2 **/*.md
+      - name: Validate JSON
+        run: |
+          set -e
+          files=$(git ls-files '*.json' || true)
+          if [ -n "$files" ]; then
+            echo "$files" | xargs -r -n1 jq .
           fi
-          echo "No tabs in Markdown."
 
-      - name: Lint YAML
+      # ---- Helm / kubeconform（charts があるときだけ）----
+      - name: Check charts presence
+        id: have_charts
         run: |
-          python3 -m pip install --upgrade pip >/dev/null 2>&1
-          pip3 install yamllint >/dev/null 2>&1
-          yamllint -s .github/**/*.yml || { echo "::error::YAML lint failed"; exit 1; }
-          echo "YAML syntax OK."
-
-      - name: Validate JSON files
-        run: |
-          set -euo pipefail
-          if command -v jq >/dev/null 2>&1; then
-            true
+          if [ -d charts ] && ls charts | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
           else
-            sudo apt-get update -y && sudo apt-get install -y jq
+            echo "found=false" >> "$GITHUB_OUTPUT"
           fi
-          jq -e . .github/renovate.json >/dev/null
-          echo "JSON syntax OK."
 
-      - name: Enforce no :latest policy (YAML/Helm/Docker only)
+      - name: Install kubeconform
+        if: steps.have_charts.outputs.found == 'true'
         run: |
-          set -euo pipefail
-          # 対象: *.yml/*.yaml/Dockerfile（docs/.github は除外）
-          if grep -RIn \
-              --exclude-dir=.git \
-              --exclude-dir=docs \
-              --exclude-dir=.github \
-              --include='*.yml' --include='*.yaml' --include='Dockerfile' \
-              -E ':[[:space:]]*latest(\b|$)' .; then
-            echo "::error::Found ':latest' in manifests or Dockerfiles (policy forbids it)"
-            exit 1
-          fi
-          echo "No ':latest' usage detected in manifests/Dockerfiles."
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+          | tar xz -C /usr/local/bin
 
-      - name: scripts/sync-common.sh is executable
+      - name: Helm lint
+        if: steps.have_charts.outputs.found == 'true'
         run: |
-          if [ -f scripts/sync-common.sh ] && [ ! -x scripts/sync-common.sh ]; then
-            echo "::error file=scripts/sync-common.sh::script must be executable (chmod +x)"; exit 1
-          fi
-          echo "scripts/sync-common.sh executable OK (or not present)."
+          set -e
+          for c in charts/*; do
+            [ -d "$c" ] || continue
+            echo "==> helm lint $c"
+            helm lint "$c"
+          done
+
+      - name: kubeconform validate (helm template)
+        if: steps.have_charts.outputs.found == 'true'
+        run: |
+          set -e
+          for c in charts/*; do
+            [ -d "$c" ] || continue
+            echo "==> kubeconform validate $c"
+            if [ -f "$c/values-kind.yaml" ]; then
+              helm template "$c" -f "$c/values-kind.yaml" | kubeconform -strict -ignore-missing-schemas -
+            else
+              helm template "$c" | kubeconform -strict -ignore-missing-schemas -
+            fi
+          done
