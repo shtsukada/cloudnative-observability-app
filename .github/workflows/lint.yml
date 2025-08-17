@@ -1,0 +1,78 @@
+name: lint (root)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required files exist
+        run: |
+          set -euo pipefail
+          must=(
+            "README.md"
+            "LICENSE"
+            ".editorconfig"
+            ".gitattributes"
+            ".github/workflows/lint.yml"
+            ".github/workflows/release-please.yml"
+            ".github/renovate.json"
+          )
+          for f in "${must[@]}"; do
+            test -e "$f" || { echo "::error file=$f::missing required file"; exit 1; }
+          done
+          echo "All required files exist."
+
+      - name: Markdown tab check
+        run: |
+          set -euo pipefail
+          if git ls-files '*.md' | xargs -r -n1 grep -n $'\t' --with-filename; then
+            echo "::error::Tab characters found in Markdown (use spaces)"; exit 1;
+          fi
+          echo "No tabs in Markdown."
+
+      - name: Lint YAML
+        run: |
+          python3 -m pip install --upgrade pip >/dev/null 2>&1
+          pip3 install yamllint >/dev/null 2>&1
+          yamllint -s .github/**/*.yml || { echo "::error::YAML lint failed"; exit 1; }
+          echo "YAML syntax OK."
+
+      - name: Validate JSON files
+        run: |
+          set -euo pipefail
+          if command -v jq >/dev/null 2>&1; then
+            true
+          else
+            sudo apt-get update -y && sudo apt-get install -y jq
+          fi
+          jq -e . .github/renovate.json >/dev/null
+          echo "JSON syntax OK."
+
+      - name: Enforce no :latest policy (YAML/Helm/Docker only)
+        run: |
+          set -euo pipefail
+          # 対象: *.yml/*.yaml/Dockerfile（docs/.github は除外）
+          if grep -RIn \
+              --exclude-dir=.git \
+              --exclude-dir=docs \
+              --exclude-dir=.github \
+              --include='*.yml' --include='*.yaml' --include='Dockerfile' \
+              -E ':[[:space:]]*latest(\b|$)' .; then
+            echo "::error::Found ':latest' in manifests or Dockerfiles (policy forbids it)"
+            exit 1
+          fi
+          echo "No ':latest' usage detected in manifests/Dockerfiles."
+
+      - name: scripts/sync-common.sh is executable
+        run: |
+          if [ -f scripts/sync-common.sh ] && [ ! -x scripts/sync-common.sh ]; then
+            echo "::error file=scripts/sync-common.sh::script must be executable (chmod +x)"; exit 1
+          fi
+          echo "scripts/sync-common.sh executable OK (or not present)."

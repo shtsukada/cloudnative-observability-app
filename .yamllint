@@ -1,0 +1,36 @@
+extends: default
+
+yaml-files:
+  - '*.yaml'
+  - '*.yml'
+
+ignore: |
+  config/**
+
+rules:
+  # 80 だと GitHub Actions の式や長い URL がよく当たるので緩和
+  line-length:
+    max: 140
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # GitHub Actions は 'on' キーを使うため誤検知しやすい
+  truthy: disable
+
+  # 先頭に '---' が無くても許容
+  document-start: disable
+
+  # 余白は警告レベル（厳密にしない）
+  brackets:
+    max-spaces-inside: 1
+    level: warning
+
+  # コメントのインデントは厳密にしない
+  comments-indentation: disable
+
+  indentation:
+    level: warning
+  comments:
+    require-starting-space: false
+    level: warning
+  comments-indentation: disable

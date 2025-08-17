@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":disableRateLimiting"
+  ],
+
+  "timezone": "Asia/Tokyo",
+  "labels": ["dependencies"],
+  "prCreation": "not-pending",
+  "prConcurrentLimit": 5,
+  "rebaseWhen": "behind-base-branch",
+
+  "enabledManagers": ["terraform", "gomod", "helm-values", "helm-requirements"],
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "dependencies"]
+  },
+
+  "packageRules": [
+    {
+      "description": "Helm charts",
+      "matchManagers": ["helm-values", "helm-requirements"],
+      "groupName": "helm-charts",
+      "schedule": ["after 9am on monday"]
+    },
+    {
+      "description": "Terraform providers/modules",
+      "matchManagers": ["terraform"],
+      "groupName": "terraform",
+      "schedule": ["after 9am on monday"]
+    },
+    {
+      "description": "Go modules",
+      "matchManagers": ["gomod"],
+      "groupName": "gomod",
+      "postUpdateOptions": ["gomodTidy"]
+    }
+  ]
+}
