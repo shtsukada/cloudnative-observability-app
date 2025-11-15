@@ -20,7 +20,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	cl := healthpb.NewHealthClient(conn)
 	resp, err := cl.Check(ctx, &healthpb.HealthCheckRequest{Service: ""})
