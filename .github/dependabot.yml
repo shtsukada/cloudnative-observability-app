@@ -7,4 +7,15 @@ updates:
       day: monday
       time: "00:00"
       timezone: "Asia/Tokyo"
-    labels: ["dependencies"]
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "01:00"
+      timezone: "Asia/Tokyo"
+    labels:
+      - "dependencies"

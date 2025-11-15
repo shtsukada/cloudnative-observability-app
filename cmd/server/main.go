@@ -28,9 +28,9 @@ func main() {
 	logger := observability.NewLogger()
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	metricsSrv := &http.Server{Addr: metricsAddr, Handler: mux}
+	metricsSrv := &http.Server{Addr: metricsAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 
-	grpcLis, err := net.Listen("tcp", grpcAddr)
+	grpcLis, err := net.Listen("tcp", grpcAddr) //nolint:gosec
 	if err != nil {
 		logger.Fatal("failed to listen", "addr", grpcAddr, "err", err)
 	}
