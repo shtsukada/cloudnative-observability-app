@@ -17,6 +17,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/shtsukada/cloudnative-observability-app/pkg/observability"
+	appserver "github.com/shtsukada/cloudnative-observability-app/pkg/server"
+	grpcburnerv1 "github.com/shtsukada/cloudnative-observability-proto/gen/go/observability/grpcburner/v1"
 )
 
 const (
@@ -24,11 +26,58 @@ const (
 	metricsAddr = ":9090"
 )
 
+// newGRPCServer は interceptor やオプションを差し込みやすいよう、
+// grpc.NewServer のラッパーとして定義しておく
+// func newGRPCServer() *grpc.Server {
+// 	// 後続ブランチ (logging / metrics / tracing) で ServerOption を追加する予定
+// 	return grpc.NewServer()
+// }
+
+// registerGRPCServices は gRPC サーバーに標準サービスとアプリケーションサービスを登録する
+func registerGRPCServices(s *grpc.Server) {
+	// HealthCheck
+	healthServer := health.NewServer()
+	healthpb.RegisterHealthServer(s, healthServer)
+	// デフォルトサービス名 "" を SERVINGにしておく
+	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+
+	// アプリケーションのgRPCサービス
+	burner := appserver.NewGrpcBurnerServer()
+	grpcburnerv1.RegisterBurnerServer(s, burner)
+
+	// Reflection
+	reflection.Register(s)
+}
+
+func newHTTPMux() http.Handler {
+	mux := http.NewServeMux()
+
+	// Prometheusメトリクス
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// シンプルなヘルスチェック
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		// 将来的に gRPC health の状態を見に行く実装に差し替えても良い
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok\n"))
+	})
+	return mux
+}
+
+func newHTTPServer(addr string) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           newHTTPMux(),
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+}
+
 func main() {
 	logger := observability.NewLogger()
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-	metricsSrv := &http.Server{Addr: metricsAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+
+	metricsSrv := newHTTPServer(metricsAddr)
 
 	grpcLis, err := net.Listen("tcp", grpcAddr) //nolint:gosec
 	if err != nil {
@@ -37,9 +86,7 @@ func main() {
 	grpcSrv := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(observability.UnaryLoggingInterceptor(logger)),
 	)
-	healthSrv := health.NewServer()
-	healthpb.RegisterHealthServer(grpcSrv, healthSrv)
-	reflection.Register(grpcSrv)
+	registerGRPCServices(grpcSrv)
 
 	go func() {
 		logger.Info("metrics http starting", "addr", metricsAddr)
