@@ -4,7 +4,7 @@ go 1.24.5
 
 require (
 	github.com/prometheus/client_golang v1.23.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.74.2
 )
 
