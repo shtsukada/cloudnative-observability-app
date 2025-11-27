@@ -89,13 +89,13 @@ func main() {
 	registerGRPCServices(grpcSrv)
 
 	go func() {
-		logger.Info("metrics http starting", "addr", metricsAddr)
+		logger.Infow("metrics http starting", "addr", metricsAddr)
 		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("metrics http error", "err", err)
 		}
 	}()
 	go func() {
-		logger.Info("grpc starting", "addr", grpcAddr)
+		logger.Infow("grpc starting", "addr", grpcAddr)
 		if err := grpcSrv.Serve(grpcLis); err != nil {
 			logger.Error("grpc serve error", "err", err)
 		}
