@@ -61,6 +61,7 @@ Chart.lock
 *_backup.go
 temp/
 scratch/
+otel-collector-config.yaml
 
 # ----------------------------------------
 # Secrets / Keys

@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -78,13 +80,32 @@ func newHTTPServer(addr string) *http.Server {
 func main() {
 	logger := observability.NewLogger()
 
+	ctx := context.Background()
+	tracingShutdown, err := observability.InitTracerProvider(ctx)
+	if err != nil {
+		logger.Fatal("failed to init tracing", "err", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracingShutdown(shutdownCtx); err != nil {
+			logger.Error("failed to shutdown tracer provider", "err", err)
+		}
+	}()
+
 	metricsSrv := newHTTPServer(metricsAddr)
 
 	grpcLis, err := net.Listen("tcp", grpcAddr) //nolint:gosec
 	if err != nil {
 		logger.Fatal("failed to listen", "addr", grpcAddr, "err", err)
 	}
+
+	otelHandler := otelgrpc.NewServerHandler(
+		otelgrpc.WithTracerProvider(otel.GetTracerProvider()),
+	)
+
 	grpcSrv := grpc.NewServer(
+		grpc.StatsHandler(otelHandler),
 		grpc.ChainUnaryInterceptor(
 			grpc_prometheus.UnaryServerInterceptor,
 			observability.UnaryMetricsInterceptor,
