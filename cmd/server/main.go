@@ -14,6 +14,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/shtsukada/cloudnative-observability-app/pkg/observability"
@@ -84,8 +85,13 @@ func main() {
 		logger.Fatal("failed to listen", "addr", grpcAddr, "err", err)
 	}
 	grpcSrv := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(observability.UnaryLoggingInterceptor(logger)),
+		grpc.ChainUnaryInterceptor(
+			grpc_prometheus.UnaryServerInterceptor,
+			observability.UnaryMetricsInterceptor,
+			observability.UnaryLoggingInterceptor(logger),
+		),
 	)
+	grpc_prometheus.Register(grpcSrv)
 	registerGRPCServices(grpcSrv)
 
 	go func() {

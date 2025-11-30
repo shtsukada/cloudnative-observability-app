@@ -3,12 +3,13 @@ module github.com/shtsukada/cloudnative-observability-app
 go 1.24.5
 
 require (
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/prometheus/client_golang v1.23.0
 	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.77.0
 )
 
-require github.com/google/uuid v1.6.0 // indirect
+require github.com/google/uuid v1.6.0
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -23,5 +24,5 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.10
 )
