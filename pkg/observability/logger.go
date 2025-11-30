@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -98,8 +100,21 @@ func UnaryLoggingInterceptor(logger *zap.SugaredLogger) grpc.UnaryServerIntercep
 			code = st.Code().String()
 		}
 
-		// TODO: trace_idはOtel導入時にspan contextから取得
+		// Otel span から trace_id を取得し、request_id/mode を attributeに載せる
+		span := trace.SpanFromContext(ctx)
 		traceID := ""
+		if span != nil {
+			sc := span.SpanContext()
+			if sc.IsValid() {
+				traceID = sc.TraceID().String()
+			}
+			if span.IsRecording() {
+				span.SetAttributes(
+					attribute.String("request_id", requestID),
+					attribute.String("mode", mode),
+				)
+			}
+		}
 
 		fields := []any{
 			"grpc_method", info.FullMethod,
