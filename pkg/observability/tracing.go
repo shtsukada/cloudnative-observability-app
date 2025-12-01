@@ -19,6 +19,18 @@ import (
 // gRPCサーバーのトレースが Collector(Tempo) に送信されるように設定する。
 // 戻り値の shutdown はアプリ終了時に呼び出す。
 func InitTracerProvider(ctx context.Context) (func(context.Context) error, error) {
+	// サーバ側用: service.name = "cno-app"
+	return initTracerProvider(ctx, "cno-app")
+}
+
+// InitClientTracerProvider は gRPCクライアント用のTracerProviderを初期化する。
+// 基本設定はサーバー側と揃えつつ、service.Name だけ "cno-app-client"に変える。
+func InitClientTracerProvider(ctx context.Context) (func(context.Context) error, error) {
+	return initTracerProvider(ctx, "cno-app-client")
+}
+
+// initTracerProviderは service.Nameだけを引数で切り替える共通実装。
+func initTracerProvider(ctx context.Context, serviceName string) (func(context.Context) error, error) {
 	// OTEL_EXPORTER_OTLP_ENDPOINT が未設定ならローカルCollectorを前提にする
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
@@ -56,7 +68,7 @@ func InitTracerProvider(ctx context.Context) (func(context.Context) error, error
 		ctx,
 		resource.WithFromEnv(),
 		resource.WithAttributes(
-			attribute.String("service.name", "cno-app"),
+			attribute.String("service.name", serviceName),
 			attribute.String("service.namespace", "grpc"),
 			attribute.String("service.version", serviceVersion()),
 		),

@@ -10,6 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/shtsukada/cloudnative-observability-app/pkg/observability"
 	grpcburnerv1 "github.com/shtsukada/cloudnative-observability-proto/gen/go/observability/grpcburner/v1"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -48,6 +51,18 @@ func run() error {
 		return err
 	}
 
+	// TracerProviderをクライアント用に初期化
+	ctx := context.Background()
+	shutdown, err := observability.InitClientTracerProvider(ctx)
+	if err != nil {
+		return fmt.Errorf("init client tracer provider: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdown(shutdownCtx)
+	}()
+
 	// NOTE:今はHealthを叩くだけだが、PingRequest型をimportしておき、
 	// 今後Dowork/Ping呼び出しに差し替えるまで「proto依存」にしておく
 	_ = grpcburnerv1.PingRequest{}
@@ -55,6 +70,7 @@ func run() error {
 	conn, err := grpc.NewClient(
 		opts.Addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to dial %s: %w", opts.Addr, err)
@@ -104,7 +120,7 @@ func parseOptions() (*options, error) {
 }
 
 // callHealthはHealthチェックRPCを実行し、
-// request_id 生成+metadata伝播/終了ログを出力する
+// request_id 生成+metadata伝播/trace_id付きログを出力する
 func callHealth(conn *grpc.ClientConn, opts *options) error {
 	logger := observability.NewLogger()
 	defer func() {
@@ -124,6 +140,15 @@ func callHealth(conn *grpc.ClientConn, opts *options) error {
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
+	// クライアント側のSpanを開始
+	tracer := otel.Tracer("cno-app-client")
+	ctx, span := tracer.Start(ctx, "grpc.client/HealthCheck")
+	defer span.End()
+
+	// trace_idをログ用に取得
+	spanCtx := trace.SpanFromContext(ctx).SpanContext()
+	traceID := spanCtx.TraceID().String()
+
 	// 送信リクエスト(HealthCheck)
 	req := &healthpb.HealthCheckRequest{Service: ""}
 
@@ -134,6 +159,7 @@ func callHealth(conn *grpc.ClientConn, opts *options) error {
 
 	// リクエスト開始ログ
 	logger.Infow("client request start",
+		"trace_id", traceID,
 		"mode", opts.Mode,
 		"addr", opts.Addr,
 		"request_id", requestID,
@@ -158,6 +184,7 @@ func callHealth(conn *grpc.ClientConn, opts *options) error {
 	}
 
 	fields := []any{
+		"trace_id", traceID,
 		"mode", opts.Mode,
 		"addr", opts.Addr,
 		"request_id", requestID,
