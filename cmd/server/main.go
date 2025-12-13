@@ -111,6 +111,10 @@ func main() {
 			observability.UnaryMetricsInterceptor,
 			observability.UnaryLoggingInterceptor(logger),
 		),
+		grpc.ChainStreamInterceptor(
+			grpc_prometheus.StreamServerInterceptor,
+			observability.StreamMetricsInterceptor,
+		),
 	)
 	grpc_prometheus.Register(grpcSrv)
 	registerGRPCServices(grpcSrv)
