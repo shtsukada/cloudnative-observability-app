@@ -11,6 +11,7 @@ require (
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/shtsukada/cloudnative-observability-proto v0.1.1-0.20251207094847-9cd08f91e8c5
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
@@ -37,7 +38,6 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.65.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
-	github.com/shtsukada/cloudnative-observability-proto v0.0.0
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/net v0.46.1-0.20251013234738-63d1a5100f82 // indirect
 	golang.org/x/sys v0.37.0 // indirect
@@ -45,5 +45,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/protobuf v1.36.10
 )
-
-replace github.com/shtsukada/cloudnative-observability-proto => ../cloudnative-observability-proto
