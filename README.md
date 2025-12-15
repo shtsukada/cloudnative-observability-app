@@ -17,7 +17,7 @@ gRPC サーバ(:8080)とPrometheusメトリクス(/metrics, :9090)を提供す�
 
 ## Quickstart
 ```bash
-docker run --rm ghcr.io/YOUR_ORG/grpc-burner:TAG --mode=cpu
+docker run --rm ghcr.io/stsukada/grpc-burner:TAG --mode=cpu
 ```
 
 ## MVP
