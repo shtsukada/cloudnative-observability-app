@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.5"
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Unit tests
+        run: |
+          set -euo pipefail
+          go test ./... -count=1
+
+  kind-smoke:
+    runs-on: ubuntu-latest
+    needs: lint-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.5"
+          cache: true
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: cno
+          node_image: kindest/node:v1.29.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ここが重要：kind load がコケないように provenance/sbom を切って “単一イメージ” を --load で作る
+      - name: Build image (linux/amd64, load)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          tags: cno/grpc-burner:ci
+          load: true
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Load image into kind
+        run: |
+          set -euo pipefail
+          kind load docker-image cno/grpc-burner:ci --name cno
+
+      - name: Kind smoke test
+        env:
+          IMAGE_TAG: cno/grpc-burner:ci
+        run: |
+          set -euo pipefail
+          chmod +x hack/ci/kind-smoke.sh
+          hack/ci/kind-smoke.sh
