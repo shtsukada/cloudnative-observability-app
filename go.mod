@@ -11,7 +11,7 @@ require (
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/shtsukada/cloudnative-observability-proto v0.1.1-0.20251207094847-9cd08f91e8c5
+	github.com/shtsukada/cloudnative-observability-proto v0.1.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
